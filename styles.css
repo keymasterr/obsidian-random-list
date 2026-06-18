@@ -2,7 +2,7 @@
 	display: inline-flex;
 }
 
-.rnd-trigger:has(svg) {
+.rnd-trigger--icon {
 	transform: translateY(1px);
 }
 

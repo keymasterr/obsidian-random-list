@@ -326,30 +326,32 @@ class RandomPickModal extends Modal {
 				text: "",
 			});
 			this.updateToggleBtn();
-			this.toggleBtnEl.addEventListener("click", async () => {
-				const item = this.currentItem;
-				if (!item || !item.isCheckbox) return;
+			this.toggleBtnEl.addEventListener("click", () => {
+				void (async () => {
+					const item = this.currentItem;
+					if (!item || !item.isCheckbox) return;
 
-				const markDone = !item.isDone;
-				await this.onToggleDone(item, markDone);
-				item.isDone = markDone;
+					const markDone = !item.isDone;
+					await this.onToggleDone(item, markDone);
+					item.isDone = markDone;
 
-				// Update item text to reflect timestamp change in the modal
-				if (markDone && this.addDoneTimestamp) {
-					item.text = item.text + buildTimestamp();
-				} else if (!markDone) {
-					item.text = stripTimestamp(item.text);
-				}
+					// Update item text to reflect timestamp change in the modal
+					if (markDone && this.addDoneTimestamp) {
+						item.text = item.text + buildTimestamp();
+					} else if (!markDone) {
+						item.text = stripTimestamp(item.text);
+					}
 
-				new Notice(markDone
-					? `Marked done: ${item.text}`
-					: `Marked undone: ${item.text}`
-				);
+					new Notice(markDone
+						? `Marked done: ${item.text}`
+						: `Marked undone: ${item.text}`
+					);
 
-				this.pool = this.buildPool();
-				await this.renderResult();
-				this.updateToggleBtn();
-				this.updateAgainBtn();
+					this.pool = this.buildPool();
+					await this.renderResult();
+					this.updateToggleBtn();
+					this.updateAgainBtn();
+				})();
 			});
 		}
 	}
@@ -407,10 +409,11 @@ class RandomPickModal extends Modal {
 
 		try {
 			if (navigator.clipboard && "write" in navigator.clipboard) {
-				const item = new ClipboardItem({
+				const clipboardData: Record<string, Blob> = {
 					"text/html":  new Blob([html], { type: "text/html" }),
 					"text/plain": new Blob([text], { type: "text/plain" }),
-				});
+				};
+				const item: ClipboardItem = new ClipboardItem(clipboardData);
 				await navigator.clipboard.write([item]);
 			} else {
 				await navigator.clipboard.writeText(text);
@@ -465,10 +468,10 @@ class RndWidget extends WidgetType {
 		btn.setAttribute("aria-label", "Pick a random list item");
 		this.plugin.renderButtonContent(btn);
 
-		btn.addEventListener("mousedown", async (e) => {
+		btn.addEventListener("mousedown", (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			await this.plugin.openModal(this.lineIndex, this.flagsRaw);
+			void this.plugin.openModal(this.lineIndex, this.flagsRaw);
 		});
 
 		return btn;
@@ -477,7 +480,8 @@ class RndWidget extends WidgetType {
 	eq(other: RndWidget): boolean {
 		return other.lineIndex === this.lineIndex &&
 		       other.flagsRaw === this.flagsRaw &&
-		       other.plugin.getButtonText() === this.plugin.getButtonText();
+		       other.plugin.getButtonText() === this.plugin.getButtonText() &&
+		       other.plugin.settingsVersion === this.plugin.settingsVersion;
 	}
 
 	ignoreEvent() { return false; }
@@ -600,6 +604,7 @@ class RndSettingTab extends PluginSettingTab {
 
 export default class RandomListPlugin extends Plugin {
 	settings!: RndSettings;
+	settingsVersion = 0;
 
 	async onload() {
 		await this.loadSettings();
@@ -613,16 +618,45 @@ export default class RandomListPlugin extends Plugin {
 		this.registerEditorExtension(
 			ViewPlugin.define((view) => new RndViewPlugin(view, this), viewPluginSpec)
 		);
+
+		this.addCommand({
+			id: "random-pick-whole-document",
+			name: "Random pick: whole document",
+			callback: () => { void this.runCommandWholeDoc(); },
+		});
+
+		this.addCommand({
+			id: "random-pick-cursor-position",
+			// eslint-disable-next-line obsidianmd/ui/sentence-case
+			name: "Random pick: from cursor position",
+			editorCallback: (editor) => { void this.runCommandCursor(editor); },
+		});
 	}
 
 	onunload() {}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const loaded = (await this.loadData()) as Partial<RndSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		this.settingsVersion++;
+		this.forceDecorationRebuild();
+	}
+
+	// Dispatch a no-op transaction on every open editor to trigger decoration rebuild.
+	private forceDecorationRebuild() {
+		this.app.workspace.iterateAllLeaves(leaf => {
+			const view = leaf.view;
+			// @ts-expect-error — accessing the CM6 editor view through Obsidian's internal property
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+			const editorView = (view.editor?.cm) as EditorView | undefined;
+			if (editorView) {
+				editorView.dispatch({});
+			}
+		});
 	}
 
 	getButtonText(): string {
@@ -637,8 +671,10 @@ export default class RandomListPlugin extends Plugin {
 		btn.empty();
 		if (this.settings.useCustomButtonText && this.settings.customButtonText) {
 			btn.textContent = this.settings.customButtonText;
+			btn.removeClass("rnd-trigger--icon");
 		} else {
 			setIcon(btn, "dices");
+			btn.addClass("rnd-trigger--icon");
 		}
 	}
 
@@ -674,6 +710,43 @@ export default class RandomListPlugin extends Plugin {
 		).open();
 	}
 
+	// ── Commands ──────────────────────────────────────────────────────────────
+
+	private async runCommandWholeDoc() {
+		const file = this.app.workspace.getActiveFile();
+		if (!file) { new Notice("No active file."); return; }
+
+		const content = await this.app.vault.read(file);
+		const lines   = content.split("\n");
+		const items   = extractListItems(lines, 0, lines.length, this.settings.includeDone);
+
+		if (items.length === 0) {
+			new Notice("No list items found in document.");
+			return;
+		}
+
+		new RandomPickModal(
+			this.app,
+			items,
+			null,
+			this.settings.includeDone,
+			this.settings.addDoneTimestamp,
+			file.path,
+			async (item, markDone) => { await this.toggleItemDone(file, item, markDone, this.settings.addDoneTimestamp); }
+		).open();
+	}
+
+	private async runCommandCursor(editor: import("obsidian").Editor) {
+		const file = this.app.workspace.getActiveFile();
+		if (!file) { new Notice("No active file."); return; }
+
+		const content        = await this.app.vault.read(file);
+		const lines          = content.split("\n");
+		const triggerLineIndex = editor.getCursor().line;
+
+		this.showModal(lines, triggerLineIndex, file);
+	}
+
 	// ── Reading mode ──────────────────────────────────────────────────────────
 
 	private processElement(el: HTMLElement, ctx: MarkdownPostProcessorContext) {
@@ -690,7 +763,7 @@ export default class RandomListPlugin extends Plugin {
 		const parent = textNode.parentNode;
 		if (!parent) return;
 		const ownerDoc = textNode.ownerDocument;
-		const text = textNode.textContent!;
+		const text = textNode.textContent;
 
 		const matchRe = /\{\{rnd(?::([^}]*))?\}\}/g;
 		const frag = ownerDoc.createDocumentFragment();
@@ -717,31 +790,33 @@ export default class RandomListPlugin extends Plugin {
 		btn.setAttribute("aria-label", "Pick a random list item");
 		this.renderButtonContent(btn);
 
-		btn.addEventListener("click", async (e) => {
+		btn.addEventListener("click", (e) => {
 			e.stopPropagation();
-			const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
-			if (!(file instanceof TFile)) { new Notice("Could not find the note file."); return; }
+			void (async () => {
+				const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+				if (!(file instanceof TFile)) { new Notice("Could not find the note file."); return; }
 
-			const content = await this.app.vault.read(file);
-			const lines   = content.split("\n");
+				const content = await this.app.vault.read(file);
+				const lines   = content.split("\n");
 
-			// Find the nth (occurrenceIndex) occurrence of {{rnd}} within the section
-			const sectionInfo = ctx.getSectionInfo(btn);
-			let triggerLine   = 0;
-			let found         = 0;
+				// Find the nth (occurrenceIndex) occurrence of {{rnd}} within the section
+				const sectionInfo = ctx.getSectionInfo(btn);
+				let triggerLine   = 0;
+				let found         = 0;
 
-			const lineStart = sectionInfo?.lineStart ?? 0;
-			const lineEnd   = sectionInfo?.lineEnd   ?? lines.length - 1;
-			const lineRe    = /\{\{rnd(?::[^}]*)?\}\}/;
+				const lineStart = sectionInfo?.lineStart ?? 0;
+				const lineEnd   = sectionInfo?.lineEnd   ?? lines.length - 1;
+				const lineRe    = /\{\{rnd(?::[^}]*)?\}\}/;
 
-			for (let i = lineStart; i <= lineEnd; i++) {
-				if (lineRe.test(lines[i] ?? "")) {
-					if (found === occurrenceIndex) { triggerLine = i; break; }
-					found++;
+				for (let i = lineStart; i <= lineEnd; i++) {
+					if (lineRe.test(lines[i] ?? "")) {
+						if (found === occurrenceIndex) { triggerLine = i; break; }
+						found++;
+					}
 				}
-			}
 
-			this.showModal(lines, triggerLine, file, parseRndFlags(flagsRaw));
+				this.showModal(lines, triggerLine, file, parseRndFlags(flagsRaw));
+			})();
 		});
 
 		return btn;
