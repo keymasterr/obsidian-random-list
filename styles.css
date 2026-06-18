@@ -1,0 +1,64 @@
+.rnd-trigger {
+	display: inline-flex;
+}
+
+.rnd-trigger:has(svg) {
+	transform: translateY(1px);
+}
+
+.rnd-modal { display: flex; flex-direction: column; gap: 0; padding: 4px 0 8px; }
+
+.rnd-modal__label {
+	font-size: 0.75em; font-weight: 600; letter-spacing: 0.06em;
+	text-transform: uppercase; color: var(--text-muted); margin: 0 0 10px 0;
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.rnd-modal__result {
+	display: flex; align-items: flex-start; gap: 8px;
+	font-size: 1.15em; font-weight: 500; color: var(--text-normal);
+	line-height: 1.5; padding: 14px 16px; border-radius: 6px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	margin-bottom: 18px; min-height: 2.5em;
+}
+
+.rnd-modal__result-content { flex: 1 1 auto; word-break: break-word; min-width: 0; }
+
+.rnd-modal__copy-btn {
+	flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+	color: var(--text-muted); cursor: pointer;
+}
+.rnd-modal__copy-btn:hover { color: var(--text-normal); }
+
+.rnd-modal__result-text p { margin: 0; display: inline; }
+.rnd-modal__result-done { color: var(--text-muted); }
+.rnd-modal__result-empty { color: var(--text-muted); font-style: italic; }
+
+.rnd-modal__result-num {
+	font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 0.9em;
+}
+
+.rnd-modal__buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.rnd-modal__btn {
+	padding: 6px 14px; border-radius: 5px; font-size: 0.9em;
+	font-weight: 500; cursor: pointer; border: 1.5px solid transparent;
+	transition: background 0.1s, border-color 0.1s, color 0.1s;
+	font-family: var(--font-interface);
+}
+.rnd-modal__btn--primary {
+	background: var(--interactive-accent); color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+.rnd-modal__btn--primary:hover {
+	background: var(--interactive-accent-hover); border-color: var(--interactive-accent-hover);
+}
+.rnd-modal__btn--secondary {
+	background: transparent; color: var(--text-normal);
+	border-color: var(--background-modifier-border);
+}
+.rnd-modal__btn--secondary:hover { background: var(--background-modifier-hover); }
+.rnd-modal__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.is-hidden { display: none; }
