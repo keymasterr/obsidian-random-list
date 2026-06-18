@@ -13,9 +13,11 @@
     "random",
     "list"
   ],
-  "author": "",
+  "author": "Roman Kliuchkovych",
   "license": "MIT",
   "devDependencies": {
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
     "@types/node": "^16.11.6",
     "@typescript-eslint/parser": "^8.61.1",
     "builtin-modules": "3.3.0",
@@ -24,6 +26,6 @@
     "eslint-plugin-obsidianmd": "^0.3.0",
     "obsidian": "latest",
     "tslib": "2.4.0",
-    "typescript": "4.7.4"
+    "typescript": "^5.4.0"
   }
 }
