@@ -3,6 +3,7 @@ import {
 	Component,
 	MarkdownPostProcessorContext,
 	MarkdownRenderer,
+	MarkdownView,
 	Modal,
 	Notice,
 	Plugin,
@@ -243,6 +244,7 @@ class RandomPickModal extends Modal {
 	private copyBtnEl!: HTMLElement;
 	private againBtnEl!: HTMLButtonElement;
 	private toggleBtnEl: HTMLButtonElement | null = null;
+	private goToBtnEl!: HTMLButtonElement;
 	private renderComponent: Component;
 
 	constructor(
@@ -354,6 +356,35 @@ class RandomPickModal extends Modal {
 				})();
 			});
 		}
+
+		this.goToBtnEl = btnRow.createEl("button", {
+			cls:  "rnd-modal__btn rnd-modal__btn--secondary rnd-modal__goto-btn",
+			text: "Go to line",
+		});
+		this.goToBtnEl.addEventListener("click", () => {
+			if (!this.currentItem) return;
+			this.goToLine(this.currentItem.lineIndex);
+			this.close();
+		});
+	}
+
+	// Opens the source file at the given line (0-indexed), places the cursor
+	// at the end of the line, and scrolls it into view.
+	private goToLine(lineIndex: number) {
+		const file = this.app.vault.getAbstractFileByPath(this.sourcePath);
+		if (!(file instanceof TFile)) return;
+
+		void this.app.workspace.getLeaf(false).openFile(file).then(() => {
+			const leaf = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (!leaf) return;
+
+			const editor = leaf.editor;
+			const lineText = editor.getLine(lineIndex) ?? "";
+			const pos = { line: lineIndex, ch: lineText.length };
+
+			editor.setCursor(pos);
+			editor.scrollIntoView({ from: pos, to: pos }, true);
+		});
 	}
 
 	private async renderResult() {
@@ -621,13 +652,13 @@ export default class RandomListPlugin extends Plugin {
 
 		this.addCommand({
 			id: "random-pick-whole-document",
-			name: "Random pick: Whole document",
+			name: "Whole document",
 			callback: () => { void this.runCommandWholeDoc(); },
 		});
 
 		this.addCommand({
 			id: "random-pick-cursor-position",
-			name: "Random pick: From current position",
+			name: "From current position",
 			editorCallback: (editor) => { void this.runCommandCursor(editor); },
 		});
 	}

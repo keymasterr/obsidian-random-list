@@ -41,6 +41,8 @@
 
 .rnd-modal__buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
+.rnd-modal__goto-btn { margin-left: auto; }
+
 .rnd-modal__btn {
 	padding: 6px 14px; border-radius: 5px; font-size: 0.9em;
 	font-weight: 500; cursor: pointer; border: 1.5px solid transparent;

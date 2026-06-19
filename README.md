@@ -19,9 +19,18 @@ The intended use is decision-making and selection from a curated list you mainta
 
 Click the button → a modal shows a random pick. **Roll again** to get a different result (never repeats the current item). Accept and close with Escape, ×, or clicking outside.
 
+## Command palette
+
+Two commands are available for triggering a pick without a `{{rnd}}` button in the note:
+
+- Random List Pick: **Whole document** — picks from every list item in the note, ignoring heading scope.
+- Random List Pick: **From current position** — picks as if `{{rnd}}` were placed at the cursor's current line, respecting the usual heading-scope rules.
+
+Both use the global settings (no per-button override syntax applies, since there's no `{{rnd}}` token to read flags from).
+
 ## Scoping
 
-`{{rnd}}` only draws from the list that belongs to it — not the entire note.
+`{{rnd}}` only draws from the list that belongs to it — not the entire note, and only what's below it within scope, never above.
 
 - **In a heading** — scans from that heading down to the next heading of the same or higher level
 - **In body text** — scans under the nearest ancestor heading, stopping at the next heading of equal or higher level
