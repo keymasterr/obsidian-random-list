@@ -621,14 +621,13 @@ export default class RandomListPlugin extends Plugin {
 
 		this.addCommand({
 			id: "random-pick-whole-document",
-			name: "Random pick: whole document",
+			name: "Random pick: Whole document",
 			callback: () => { void this.runCommandWholeDoc(); },
 		});
 
 		this.addCommand({
 			id: "random-pick-cursor-position",
-			// eslint-disable-next-line obsidianmd/ui/sentence-case
-			name: "Random pick: from cursor position",
+			name: "Random pick: From current position",
 			editorCallback: (editor) => { void this.runCommandCursor(editor); },
 		});
 	}
@@ -651,7 +650,7 @@ export default class RandomListPlugin extends Plugin {
 		this.app.workspace.iterateAllLeaves(leaf => {
 			const view = leaf.view;
 			// @ts-expect-error — accessing the CM6 editor view through Obsidian's internal property
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- `cm` is Obsidian's undocumented internal property exposing the CM6 EditorView; no public type exists for it.
 			const editorView = (view.editor?.cm) as EditorView | undefined;
 			if (editorView) {
 				editorView.dispatch({});
