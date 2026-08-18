@@ -1,29 +1,81 @@
 .rnd-trigger {
-	display: inline-flex;
+	/* inline-block, not inline-flex: its baseline is then the baseline of the
+	   text inside it, so a dice label lines up with the surrounding sentence.
+	   With no text (icon only) it falls back to the bottom edge, as before. */
+	display: inline-block;
+	vertical-align: baseline;
+	/* inherit rather than a fixed rem, so the label also matches inside a heading */
+	font-size: inherit;
+	line-height: inherit;
 }
 
-.rnd-trigger--icon {
+.rnd-trigger__dice-label {
+	margin-left: var(--size-2-1);
+	vertical-align: baseline;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The optical nudge belongs to the icon alone — text beside it stays on the
+   baseline rather than riding a pixel low with it. */
+.rnd-trigger--icon svg {
 	transform: translateY(1px);
 }
 
 .rnd-modal { display: flex; flex-direction: column; gap: 0; padding: 4px 0 8px; }
 
-.rnd-modal__label {
+/* The modal title is Obsidian's own element, so it is scoped through a class
+   set on the modal container rather than a :has() selector. */
+.rnd-modal-host .modal-title {
 	font-size: 0.75em; font-weight: 600; letter-spacing: 0.06em;
-	text-transform: uppercase; color: var(--text-muted); margin: 0 0 10px 0;
+	text-transform: uppercase; color: var(--text-muted);
 	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .rnd-modal__result {
 	display: flex; align-items: flex-start; gap: 8px;
 	font-size: 1.15em; font-weight: 500; color: var(--text-normal);
-	line-height: 1.5; padding: 14px 16px; border-radius: 6px;
+	line-height: 1.5; padding: 14px 10px 14px 16px; border-radius: 6px;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	margin-bottom: 18px; min-height: 2.5em;
 }
 
 .rnd-modal__result-content { flex: 1 1 auto; word-break: break-word; min-width: 0; }
+
+.rnd-modal__crumbs {
+	margin-bottom: 2px; font-size: 0.75em; font-weight: 400;
+	line-height: 1.3; color: var(--text-muted);
+	/* Context must never outgrow the pick it labels. A long parent item is
+	   truncated onto one line instead of wrapping into a block that dwarfs the
+	   result. Flex means every crumb keeps its own ellipsis and the longest one
+	   gives up the most room, so deeper levels stay readable. */
+	display: flex; align-items: baseline; white-space: nowrap;
+}
+
+.rnd-modal__crumb {
+	overflow: hidden; text-overflow: ellipsis; min-width: 3ch;
+}
+
+/* The separator between ancestors is drawn, not typed: no glyph means no font
+   can be missing it, and nothing can collide with a "/" inside item text. */
+.rnd-modal__crumb + .rnd-modal__crumb::before {
+	content: ""; display: inline-block;
+	width: 3px; height: 3px; border-radius: 50%;
+	background: currentColor; opacity: 0.6;
+	margin: 0 6px; vertical-align: middle;
+}
+
+.rnd-modal__result--dice { align-items: center; }
+
+.rnd-modal__dice-total {
+	font-size: 1.6em; font-weight: 600; line-height: 1.2;
+	font-variant-numeric: tabular-nums;
+}
+
+.rnd-modal__dice-breakdown {
+	margin-top: 2px; font-size: 0.75em; font-weight: 400;
+	color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
 
 .rnd-modal__copy-btn {
 	flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
@@ -63,4 +115,4 @@
 .rnd-modal__btn--secondary:hover { background: var(--background-modifier-hover); }
 .rnd-modal__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.is-hidden { display: none; }
+.rnd-is-hidden { display: none; }
