@@ -1,7 +1,7 @@
 {
   "id": "random-list",
   "name": "Random List Pick",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "minAppVersion": "1.1.0",
   "description": "Insert {{rnd}} in a note to get a button that picks a random item from the list below it, or {{rnd}}d20 to roll dice.",
   "author": "Roman Kliuchkovych",

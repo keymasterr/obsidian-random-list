@@ -117,7 +117,13 @@ Attack {{rnd}}d20+5
 
 The count and the modifier are both optional, so `d6`, `2d6`, `3d8+2` and `d20-1` all work. The button shows the notation it rolls, so a `d6` and a `d20` in the same note stay distinguishable. The modal shows the total, with the individual dice broken out whenever there's more than one die or a modifier — **Roll again** rerolls, and the copy icon copies the total.
 
-Supported range: 1–50 dice of 2–1000 sides, with a modifier up to ±9999. Anything outside that isn't treated as dice — `{{rnd}}d1`, `{{rnd}}d6x` and `{{rnd}}dinner` fall back to picking from the list, leaving the trailing text alone.
+Supported range: 1–50 dice of 2–1,000,000 sides, with a modifier up to ±9999. Anything outside that isn't treated as dice — `{{rnd}}d1`, `{{rnd}}d6x` and `{{rnd}}dinner` fall back to picking from the list, leaving the trailing text alone.
+
+### Drawing a number
+
+Sides go high enough that a die doubles as a draw: `{{rnd}}d4127` picks a number out of 4127, which is handy for a giveaway or a competition entry list.
+
+Two things to know before leaning on it for anything public. Rolls are independent, so the same number can come up twice in a row — reroll if it does. And the result comes from the browser's ordinary random number generator: statistically fine, but not something you can publish or have anyone else reproduce. If a draw needs to be *demonstrably* fair to other people, use a service built for that, such as [random.org](https://www.random.org/).
 
 ## Scoping
 

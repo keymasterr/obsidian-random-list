@@ -261,18 +261,6 @@ export function getScopeLines(lines: string[], triggerLineIndex: number): { star
 	return { start, end };
 }
 
-export function computeOrderedNumber(lines: string[], lineIndex: number, indent: string): number {
-	const target = indentWidth(indent);
-	let count = 1;
-	for (let i = lineIndex - 1; i >= 0; i--) {
-		if (lines[i].trim() === "") continue;
-		const parsed = parseListLine(lines[i]);
-		if (parsed && parsed.isOrdered && indentWidth(parsed.indent) === target) count++;
-		else break;
-	}
-	return count;
-}
-
 export function extractListItems(
 	lines: string[],
 	start: number,
@@ -286,30 +274,50 @@ export function extractListItems(
 	// nesting mode up front would reparent the survivors — drop a done "Italian"
 	// and its dishes would be promoted to top level.
 	const all: ListItem[] = [];
-	const widths: number[] = [];
 	// Indent width and text of each open ancestor, innermost last
 	const stack: { width: number; text: string }[] = [];
+	// Running position of each ordered run, keyed by indent width. Counting
+	// forward keeps this linear; walking back from every item to the head of its
+	// list made a long numbered list quadratic.
+	const orderedCounts = new Map<number, number>();
 
 	for (let i = start; i < end; i++) {
 		if (skip[i]) continue;
+		// A blank line keeps a loose list going, so it settles nothing
+		if (lines[i].trim() === "") continue;
 
 		const parsed = parseListLine(lines[i]);
-		if (!parsed) continue;
+		if (!parsed) {
+			// Prose ends any numbered run; the next "1." starts over
+			orderedCounts.clear();
+			continue;
+		}
 
 		const width = indentWidth(parsed.indent);
 		while (stack.length > 0 && width <= stack[stack.length - 1].width) stack.pop();
 
+		// Returning to this level ends deeper runs, and a bullet at this level
+		// ends the run here. Nested content in between does not.
+		for (const w of orderedCounts.keys()) {
+			if (w > width || (w === width && !parsed.isOrdered)) orderedCounts.delete(w);
+		}
+
+		let orderedNumber: number | null = null;
+		if (parsed.isOrdered) {
+			orderedNumber = (orderedCounts.get(width) ?? 0) + 1;
+			orderedCounts.set(width, orderedNumber);
+		}
+
 		all.push({
-			text:          parsed.text,
-			lineIndex:     i,
-			isCheckbox:    parsed.isCheckbox,
-			isDone:        parsed.isDone,
-			orderedNumber: parsed.isOrdered ? computeOrderedNumber(lines, i, parsed.indent) : null,
-			depth:         stack.length,
-			isLeaf:        true, // provisional; settled in the pass below
-			parents:       stack.map(a => stripMarkdown(a.text)),
+			text:       parsed.text,
+			lineIndex:  i,
+			isCheckbox: parsed.isCheckbox,
+			isDone:     parsed.isDone,
+			orderedNumber,
+			depth:      stack.length,
+			isLeaf:     true, // provisional; settled in the pass below
+			parents:    stack.map(a => stripMarkdown(a.text)),
 		});
-		widths.push(width);
 		stack.push({ width, text: parsed.text });
 	}
 
@@ -349,10 +357,12 @@ export function rewriteDoneState(line: string, markDone: boolean, addTimestamp: 
 // {{rnd}}d20, {{rnd}}2d6, {{rnd}}3d8+2. The count defaults to 1 and the modifier
 // is optional. The trailing lookahead keeps "{{rnd}}d6x" from half-matching —
 // in that case the token falls back to its usual list-picking behaviour.
-const DICE_SUFFIX_RE = /^(\d{0,2})d(\d{1,4})([+-]\d{1,4})?(?!\w)/;
+const DICE_SUFFIX_RE = /^(\d{0,2})d(\d{1,7})([+-]\d{1,4})?(?!\w)/;
 
 export const MAX_DICE_COUNT = 50;
-export const MAX_DICE_SIDES = 1000;
+// Large enough to double as a draw — d4127 picks a ticket out of 4127 — while
+// staying well inside the range where Math.random() is uniform.
+export const MAX_DICE_SIDES = 1_000_000;
 
 export interface DiceSpec {
 	count: number;

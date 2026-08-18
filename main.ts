@@ -547,32 +547,38 @@ class RndWidget extends WidgetType {
 
 // ─── CM6 ViewPlugin ───────────────────────────────────────────────────────────
 
-function buildRndDecorations(view: EditorView, plugin: RandomListPlugin): DecorationSet {
+interface FoundToken {
+	line: number;   // 1-based
+	from: number;
+	to: number;
+	flagsRaw: string | undefined;
+	dice: DiceSpec | null;
+}
+
+function buildRndDecorations(
+	view: EditorView,
+	plugin: RandomListPlugin,
+	skipMask: () => boolean[],
+): DecorationSet {
 	const builder   = new RangeSetBuilder<Decoration>();
 	const { doc, selection } = view.state;
 	const selRanges = Array.from({ length: selection.ranges.length }, (_, i) => selection.ranges[i]);
 
-	// Frontmatter and fenced code are line-based state, so the mask has to be
-	// built from the top of the document — but only as far as the last visible
-	// line, which keeps the cost proportional to how far down the user is.
-	const lastVisible = view.visibleRanges.length > 0
-		? doc.lineAt(view.visibleRanges[view.visibleRanges.length - 1].to).number
-		: 0;
-	const skip = lastVisible > 0
-		? buildSkipMask(doc.sliceString(0, doc.line(lastVisible).to).split("\n"))
-		: [];
+	// Visible lines are scanned first, and the frontmatter/fence mask is only
+	// asked for once a token has actually turned up. update() runs on every
+	// cursor move, so in a note with nothing on screen this now costs nothing.
+	const found: FoundToken[] = [];
 
-	// Only scan visible ranges for performance
 	for (const { from, to } of view.visibleRanges) {
 		const startLine = doc.lineAt(from).number;
 		const endLine   = doc.lineAt(to).number;
 
 		for (let i = startLine; i <= endLine; i++) {
-			if (skip[i - 1]) continue;
 			const line = doc.line(i);
-			const codeRanges = inlineCodeRanges(line.text);
 			RND_RE.lastIndex = 0;
 			let match: RegExpExecArray | null;
+			// Only worth computing for a line that turns out to hold a token
+			let codeRanges: Array<[number, number]> | null = null;
 
 			while ((match = RND_RE.exec(line.text)) !== null) {
 				const tokenEnd  = match.index + match[0].length;
@@ -584,31 +590,53 @@ function buildRndDecorations(view: EditorView, plugin: RandomListPlugin): Decora
 				RND_RE.lastIndex = sourceEnd;
 
 				// A token inside `backticks` is literal text, not a button
+				codeRanges ??= inlineCodeRanges(line.text);
 				if (isInsideRanges(match.index, codeRanges)) continue;
 
 				const tokenFrom = line.from + match.index;
 				const tokenTo   = line.from + sourceEnd;
 				const cursorInside = selRanges.some(r => r.from <= tokenTo && r.to >= tokenFrom);
 				if (cursorInside) continue;
-				builder.add(tokenFrom, tokenTo, Decoration.replace({
-					widget: new RndWidget(plugin, i - 1, match[1], dice),
-				}));
+
+				found.push({ line: i, from: tokenFrom, to: tokenTo, flagsRaw: match[1], dice });
 			}
 		}
+	}
+
+	if (found.length === 0) return builder.finish();
+
+	const skip = skipMask();
+	for (const m of found) {
+		if (skip[m.line - 1]) continue;
+		builder.add(m.from, m.to, Decoration.replace({
+			widget: new RndWidget(plugin, m.line - 1, m.flagsRaw, m.dice),
+		}));
 	}
 	return builder.finish();
 }
 
 class RndViewPlugin implements PluginValue {
 	decorations: DecorationSet;
+	// Frontmatter and fence state depend on the whole document, so the mask is
+	// cached and rebuilt only when the text actually changes. Cursor moves and
+	// scrolling fire update() far more often than edits do, and neither of them
+	// can change which lines are code.
+	private skipMask: boolean[] | null = null;
 
 	constructor(view: EditorView, private plugin: RandomListPlugin) {
-		this.decorations = buildRndDecorations(view, plugin);
+		this.decorations = buildRndDecorations(view, plugin, () => this.getSkipMask(view));
+	}
+
+	private getSkipMask(view: EditorView): boolean[] {
+		this.skipMask ??= buildSkipMask(view.state.doc.toString().split("\n"));
+		return this.skipMask;
 	}
 
 	update(update: ViewUpdate) {
+		if (update.docChanged) this.skipMask = null;
 		if (update.docChanged || update.selectionSet || update.viewportChanged) {
-			this.decorations = buildRndDecorations(update.view, this.plugin);
+			this.decorations = buildRndDecorations(
+				update.view, this.plugin, () => this.getSkipMask(update.view));
 		}
 	}
 

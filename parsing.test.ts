@@ -292,10 +292,17 @@ describe("parseDiceSuffix", () => {
 		assert.equal(parseDiceSuffix("dinner"), null);
 	});
 
+	it("takes sides large enough to draw a number", () => {
+		assert.equal(parseDiceSuffix("d4127")?.sides, 4127);
+		assert.equal(parseDiceSuffix("d1000000")?.sides, 1000000);
+	});
+
 	it("rejects values outside the supported range", () => {
 		assert.equal(parseDiceSuffix("d1"), null);
 		assert.equal(parseDiceSuffix("99d6"), null);
-		assert.equal(parseDiceSuffix("d9999"), null);
+		assert.equal(parseDiceSuffix("d1000001"), null);
+		// More digits than the pattern takes must not match a prefix of them
+		assert.equal(parseDiceSuffix("d10000000"), null);
 	});
 });
 
@@ -451,5 +458,43 @@ describe("nesting", () => {
 		assert.deepEqual(parseRndFlags("depth-all"), { nesting: "all" });
 		assert.deepEqual(parseRndFlags("depth-top,depth-leaves"), { nesting: "leaves" });
 		assert.deepEqual(parseRndFlags("done,depth-top"), { includeDone: true, nesting: "top" });
+	});
+});
+
+describe("ordered numbering", () => {
+	const numbers = (src: string) =>
+		extractListItems(lines(src), 0, lines(src).length, true, "all").map(i => i.orderedNumber);
+
+	it("keeps counting across a blank line, which only makes the list loose", () => {
+		assert.deepEqual(numbers("1. a\n\n2. b"), [1, 2]);
+	});
+
+	it("keeps counting past nested content, the way Obsidian renders it", () => {
+		// Walking backwards used to stop at the sub-item and restart at 1
+		assert.deepEqual(numbers("1. a\n  - note\n2. b"), [1, null, 2]);
+	});
+
+	it("restarts after prose ends the list", () => {
+		assert.deepEqual(numbers("1. a\n2. b\n\nSome text\n\n1. x"), [1, 2, 1]);
+	});
+
+	it("restarts when a bullet interrupts at the same level", () => {
+		assert.deepEqual(numbers("1. a\n- b\n2. c"), [1, null, 1]);
+	});
+
+	it("numbers a nested ordered list independently of its parent", () => {
+		assert.deepEqual(numbers("1. a\n  1. x\n  2. y\n2. b"), [1, 1, 2, 2]);
+	});
+
+	it("restarts a nested run each time its parent comes round again", () => {
+		assert.deepEqual(numbers("1. a\n  1. x\n2. b\n  1. y"), [1, 1, 2, 1]);
+	});
+
+	it("stays linear on a long list", () => {
+		const src = Array.from({ length: 400 }, (_, i) => `${i + 1}. item`).join("\n");
+		const nums = numbers(src);
+		assert.equal(nums.length, 400);
+		assert.equal(nums[0], 1);
+		assert.equal(nums[399], 400);
 	});
 });
